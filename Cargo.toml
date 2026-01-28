@@ -1,0 +1,11 @@
+[package]
+name = "rectenc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.56", features = ["derive"] }
+opencv = { version = "0.98.1" }
+rayon = { version = "1.11.0", registry = "ustc" }
+rmp-serde = { version = "1.3.1" }
+serde = { version = "1.0.228", features = ["derive"] }
