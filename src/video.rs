@@ -5,22 +5,20 @@ use opencv::videoio::*;
 use std::array;
 use std::collections::VecDeque;
 
-pub const PREVIEW_LEN: usize = 2;
-
 pub struct VideoMetadata {
     pub fps: f32,
     pub width: u32,
     pub height: u32,
 }
 
-pub struct VideoIterator<const N: usize> {
+pub struct VideoIterator {
     video_capture: VideoCapture,
     current_index: usize,
     total_frames: usize,
     buffer: VecDeque<Mat>,
 }
 
-impl<const N: usize> VideoIterator<N> {
+impl VideoIterator {
     pub fn new(video_capture: VideoCapture, preview: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let total_frames = video_capture.get(CAP_PROP_FRAME_COUNT)? as usize;
         println!("视频总帧数：{}", total_frames);
@@ -61,16 +59,15 @@ impl<const N: usize> VideoIterator<N> {
     }
 }
 
-impl<const N: usize> Iterator for VideoIterator<N> {
-    type Item = [Mat; N];
+impl Iterator for VideoIterator {
+    type Item = [Mat; 2];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.buffer.is_empty() {
-            for _ in 0..N {
-                self.read_frame().ok()?;
-            }
-            self.current_index += N;
-        } else if self.current_index + N <= self.total_frames {
+            self.read_frame().ok()?;
+            self.read_frame().ok()?;
+            self.current_index += 2;
+        } else if self.current_index + 2 <= self.total_frames {
             self.buffer.pop_front();
             self.read_frame().ok()?;
             self.current_index += 1;
@@ -78,17 +75,13 @@ impl<const N: usize> Iterator for VideoIterator<N> {
             return None;
         }
         let mut result = array::from_fn(|_| Mat::default());
-        for i in 0..N {
-            result[i] = self.buffer[i].clone();
-        }
+        result[0] = self.buffer[0].clone();
+        result[1] = self.buffer[1].clone();
         Some(result)
     }
 }
 
-pub fn read_video(
-    path: &str,
-    preview: bool,
-) -> Result<(VideoMetadata, VideoIterator<PREVIEW_LEN>), Box<dyn std::error::Error>> {
+pub fn read_video(path: &str, preview: bool) -> Result<(VideoMetadata, VideoIterator), Box<dyn std::error::Error>> {
     println!("正在从 {} 读取视频帧", path);
     let video_capture = VideoCapture::from_file(path, CAP_ANY)?;
     let metadata = VideoMetadata {
@@ -96,7 +89,7 @@ pub fn read_video(
         width: video_capture.get(CAP_PROP_FRAME_WIDTH)? as u32,
         height: video_capture.get(CAP_PROP_FRAME_HEIGHT)? as u32,
     };
-    let video_iterator = VideoIterator::<PREVIEW_LEN>::new(video_capture, preview)?;
+    let video_iterator = VideoIterator::new(video_capture, preview)?;
     Ok((metadata, video_iterator))
 }
 

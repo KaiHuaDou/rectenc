@@ -2,12 +2,12 @@ alias te := test-encode
 alias td := test-decode
 alias ta := test-all
 
-test-encode:
-	cargo run --release -- encode BA.webm BA.rcts --preview
+test-encode CODE:
+	cargo run --release -- encode BAS.mkv tests/BAS_{{CODE}}.rcts --preview
 
-test-decode:
-	cargo run --release -- decode BA.rcts BA.mkv
+test-decode CODE:
+	cargo run --release -- decode tests/BAS_{{CODE}}.rcts tests/BAS_{{CODE}}.mkv
 
-test-all:
-	just test-encode
-	just test-decode
+test-all CODE:
+	just test-encode {{CODE}}
+	just test-decode {{CODE}}

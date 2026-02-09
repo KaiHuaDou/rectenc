@@ -84,7 +84,7 @@ fn encode_video(input: &str, output: &str, preview: bool) -> Result<(), Box<dyn 
     }
 
     write_rects(&rectangles, output)?;
-    write_video(&weight_mats, metadata.fps * RECT_COUNT as f32, "weights.mkv", false)?;
+    write_video(&weight_mats, metadata.fps * RECT_COUNT as f32, &format!("{input}-weights.mkv"), false)?;
 
     Ok(())
 }

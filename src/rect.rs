@@ -1,4 +1,4 @@
-use crate::diff;
+use crate::diff::*;
 use opencv::core;
 use opencv::imgproc;
 use opencv::prelude::*;
@@ -26,37 +26,56 @@ pub fn read_rects(path: &str) -> Result<Vec<Rect>, Box<dyn std::error::Error>> {
     Ok(rectangles)
 }
 
-pub fn frames2rect<const N: usize>(frames: &[Mat; N]) -> Result<(Rect, Mat), Box<dyn std::error::Error>> {
+pub fn frames2rect(frames: &[Mat; 2]) -> Result<(Rect, Mat), Box<dyn std::error::Error>> {
     let rows = frames[0].rows() as usize;
     let cols = frames[0].cols() as usize;
-    let mut weights = vec![0i8; rows * cols];
+    let mut weights = vec![Weight::BB; rows * cols];
     for row in 0..rows {
         for col in 0..cols {
-            let orig_pixel = *frames[0].at_2d::<u8>(row as i32, col as i32)? as i16;
-            for frame in &frames[1..] {
-                let curr_pixel = *frame.at_2d::<u8>(row as i32, col as i32)? as i16;
-                let diff = curr_pixel - orig_pixel;
-                if diff > 0 {
-                    weights[row * cols + col] += 1;
-                } else if diff < 0 {
-                    weights[row * cols + col] -= 1;
-                }
+            let orig = *frames[0].at_2d::<u8>(row as i32, col as i32)? > 0;
+            let curr = *frames[1].at_2d::<u8>(row as i32, col as i32)? > 0;
+            weights[row * cols + col] = match (orig, curr) {
+                (false, false) => Weight::BB,
+                (false, true) => Weight::BW,
+                (true, false) => Weight::WB,
+                (true, true) => Weight::WW,
             }
         }
     }
-    let rectangle = diff::best_rect(&weights, rows, cols);
-    let weight_mat = weight2mat::<N>(&weights, rows, cols)?;
+    let rectangle = best_rect(&weights, rows, cols);
+    let weight_mat = weight2mat(&weights, rows, cols)?;
     Ok((rectangle, weight_mat))
 }
 
-fn weight2mat<const N: usize>(weights: &[i8], rows: usize, cols: usize) -> Result<Mat, Box<dyn std::error::Error>> {
+// This is a performance HACK.
+static mut CURR_FRAME: u32 = 0;
+
+fn weight2mat(weights: &[Weight], rows: usize, cols: usize) -> Result<Mat, Box<dyn std::error::Error>> {
     let mut frame = Mat::new_rows_cols_with_default(rows as i32, cols as i32, core::CV_8UC1, core::Scalar::all(128.0))?;
     for (idx, &weight) in weights.iter().enumerate() {
         let row = idx / cols;
         let col = idx % cols;
-        let pixel_value = ((weight as i64 + (N - 1) as i64) * 255 / (2 * (N - 1)) as i64) as u8;
+        let pixel_value = match weight {
+            Weight::BB | Weight::WW => 128,
+            Weight::BW => 255,
+            Weight::WB => 0,
+        };
         *frame.at_2d_mut::<u8>(row as i32, col as i32)? = pixel_value;
     }
+    unsafe {
+        CURR_FRAME += 1;
+    }
+    imgproc::put_text(
+        &mut frame,
+        &format!("{}", unsafe { CURR_FRAME }),
+        core::Point_::new(10, 50),
+        imgproc::FONT_HERSHEY_SIMPLEX,
+        1.0,
+        core::Scalar::new(0.0, 0.0, 255.0, 0.0),
+        2,
+        imgproc::LINE_AA,
+        false,
+    )?;
     Ok(frame)
 }
 
