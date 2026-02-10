@@ -1,5 +1,5 @@
 tests/
-*-weights.mkv
+*-weights*.mkv
 BA.mkv
 BAM.mkv
 BAS.mkv

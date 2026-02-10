@@ -2,6 +2,7 @@ use crate::diff::*;
 use opencv::core;
 use opencv::imgproc;
 use opencv::prelude::*;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -29,19 +30,26 @@ pub fn read_rects(path: &str) -> Result<Vec<Rect>, Box<dyn std::error::Error>> {
 pub fn frames2rect(frames: &[Mat; 2]) -> Result<(Rect, Mat), Box<dyn std::error::Error>> {
     let rows = frames[0].rows() as usize;
     let cols = frames[0].cols() as usize;
-    let mut weights = vec![Weight::BB; rows * cols];
-    for row in 0..rows {
-        for col in 0..cols {
-            let orig = *frames[0].at_2d::<u8>(row as i32, col as i32)? > 0;
-            let curr = *frames[1].at_2d::<u8>(row as i32, col as i32)? > 0;
-            weights[row * cols + col] = match (orig, curr) {
-                (false, false) => Weight::BB,
-                (false, true) => Weight::BW,
-                (true, false) => Weight::WB,
-                (true, true) => Weight::WW,
-            }
-        }
+    let total = rows * cols;
+    let mut weights = vec![Weight::BB; total];
+    if !frames[0].is_continuous() {
+        panic!()
     }
+    if !frames[1].is_continuous() {
+        panic!()
+    }
+    let a: &[u8] = frames[0].data_typed()?;
+    let b: &[u8] = frames[1].data_typed()?;
+    weights.par_iter_mut().enumerate().for_each(|(i, w)| {
+        let orig = a[i] != 0;
+        let curr = b[i] != 0;
+        *w = match (orig, curr) {
+            (false, false) => Weight::BB,
+            (false, true) => Weight::BW,
+            (true, false) => Weight::WB,
+            (true, true) => Weight::WW,
+        };
+    });
     let rectangle = best_rect(&weights, rows, cols);
     let weight_mat = weight2mat(&weights, rows, cols)?;
     Ok((rectangle, weight_mat))

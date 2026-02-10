@@ -115,12 +115,12 @@ fn kadane_1d(arr: &[i32]) -> (i32, usize, usize) {
     let mut end = 0;
     let mut temp_start = 0;
 
-    for i in 1..arr.len() {
+    for (i, &val) in arr.iter().enumerate().skip(1) {
         if current_sum < 0 {
-            current_sum = arr[i];
+            current_sum = val;
             temp_start = i;
         } else {
-            current_sum += arr[i];
+            current_sum += val;
         }
 
         if current_sum > max_sum {
