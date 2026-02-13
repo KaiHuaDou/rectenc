@@ -44,7 +44,7 @@ impl VideoIterator {
     //     Ok(())
     // }
 
-    #[inline(always)]
+    #[inline]
     fn read_frame(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut mat = Mat::default();
         if !self.video_capture.read(&mut mat)? {
@@ -67,7 +67,7 @@ impl Iterator for VideoIterator {
             self.read_frame().ok()?;
             self.read_frame().ok()?;
             self.current_index += 2;
-        } else if self.current_index + 2 <= self.total_frames {
+        } else if self.current_index + 2 < self.total_frames {
             self.buffer.pop_front();
             self.read_frame().ok()?;
             self.current_index += 1;
@@ -93,8 +93,9 @@ pub fn read_video(path: &str, preview: bool) -> Result<(VideoMetadata, VideoIter
     Ok((metadata, video_iterator))
 }
 
-pub fn write_video(frames: &[Mat], fps: f32, path: &str, mode: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let fourcc = if mode { VideoWriter::fourcc('a', 'v', 'c', '1')? } else { VideoWriter::fourcc('F', 'F', 'V', '1')? };
+pub fn write_video(frames: &[Mat], fps: f32, path: &str, lossy: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let fourcc =
+        if lossy { VideoWriter::fourcc('a', 'v', 'c', '1')? } else { VideoWriter::fourcc('F', 'F', 'V', '1')? };
 
     let mut video_writer = VideoWriter::new_with_backend(
         path,

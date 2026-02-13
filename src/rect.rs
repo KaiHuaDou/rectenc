@@ -6,13 +6,17 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Rect {
     pub x: u32,
     pub y: u32,
     pub width: u32,
     pub height: u32,
     pub sign: bool,
+}
+
+impl Rect {
+    pub const INVALID: Rect = Rect { x: u32::MAX, y: u32::MAX, width: u32::MAX, height: u32::MAX, sign: false };
 }
 
 pub fn write_rects(rectangles: &[Rect], path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -27,29 +31,31 @@ pub fn read_rects(path: &str) -> Result<Vec<Rect>, Box<dyn std::error::Error>> {
     Ok(rectangles)
 }
 
-pub fn frames2rect(frames: &[Mat; 2]) -> Result<(Rect, Mat), Box<dyn std::error::Error>> {
+pub fn frames2rect(frames: &[Mat; 2], adaption: Option<usize>) -> Result<(Rect, Mat), Box<dyn std::error::Error>> {
     let rows = frames[0].rows() as usize;
     let cols = frames[0].cols() as usize;
-    let total = rows * cols;
-    let mut weights = vec![Weight::BB; total];
-    if !frames[0].is_continuous() {
-        panic!()
-    }
-    if !frames[1].is_continuous() {
+    if !frames[0].is_continuous() || !frames[1].is_continuous() {
         panic!()
     }
     let a: &[u8] = frames[0].data_typed()?;
     let b: &[u8] = frames[1].data_typed()?;
-    weights.par_iter_mut().enumerate().for_each(|(i, w)| {
-        let orig = a[i] != 0;
-        let curr = b[i] != 0;
-        *w = match (orig, curr) {
+    let weights: Vec<Weight> = (0..rows * cols)
+        .into_par_iter()
+        .map(|i| match (a[i] != 0, b[i] != 0) {
             (false, false) => Weight::BB,
             (false, true) => Weight::BW,
             (true, false) => Weight::WB,
             (true, true) => Weight::WW,
-        };
-    });
+        })
+        .collect();
+
+    if let Some(threshold) = adaption {
+        let diff_count = weights.iter().filter(|&&w| w == Weight::BW || w == Weight::WB).count();
+        if diff_count <= threshold {
+            return Ok((Rect::INVALID, Mat::default()));
+        }
+    }
+
     let rectangle = best_rect(&weights, rows, cols);
     let weight_mat = weight2mat(&weights, rows, cols)?;
     Ok((rectangle, weight_mat))

@@ -6,12 +6,44 @@
 
 ## 使用方法
 
-```bash
-cargo run -- encode <input.mp4> <rects.rcts>
+```text
+A video encoding/decoding utility using rectangles
+
+Usage: rectenc.exe <COMMAND>
+
+Commands:
+  encode
+  decode
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version```
 ```
 
-```bash
-cargo run -- decode <rects.rcts> <output.mkv>
+```text
+Usage: rectenc.exe encode [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>
+  <OUTPUT>
+
+Options:
+  -r, --rect-count <RECT_COUNT>  [default: 1]
+  -p, --preview
+  -a, --adaptive
+  -h, --help                     Print help
+```
+
+```text
+Usage: rectenc.exe decode <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>
+  <OUTPUT>
+
+Options:
+  -h, --help  Print help
 ```
 
 ## 原理
