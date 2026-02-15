@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use crate::rect::Rect;
-use rayon::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[repr(u8)]

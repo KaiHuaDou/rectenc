@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            triplet: x64-linux
+            name: linux
+          - os: macos-latest
+            triplet: x64-osx
+            name: macos-x64
+          - os: macos-latest
+            triplet: arm64-osx
+            name: macos-arm64
+          - os: windows-latest
+            triplet: x64-windows
+            name: windows
+
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+
+      - name: Install nasm (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm
+
+      - name: Install nasm (MacOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm
+
+      - name: Clone vcpkg
+        run: git clone https://github.com/microsoft/vcpkg.git vcpkg
+
+      - name: Bootstrap vcpkg (*nix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x vcpkg/bootstrap-vcpkg.sh
+          ./vcpkg/bootstrap-vcpkg.sh
+        shell: bash
+
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        run: .\vcpkg\bootstrap-vcpkg.bat
+        shell: pwsh
+
+      - name: Add vcpkg to PATH (*nix)
+        if: runner.os != 'Windows'
+        run: echo "${{ env.VCPKG_ROOT }}" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Add vcpkg to PATH (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # append vcpkg root to $GITHUB_PATH so subsequent steps see it
+          "$env:VCPKG_ROOT" | Out-File -FilePath $env:GITHUB_PATH -Append
+        shell: pwsh
+
+      - name: Cache vcpkg installed & downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            vcpkg/installed
+            vcpkg/downloads
+          key: ${{ runner.os }}-vcpkg-${{ matrix.triplet }}-${{ hashFiles('**/vcpkg.json') || '' }}-v1
+
+      - name: vcpkg install OpenCV4 (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          ./vcpkg/vcpkg install "opencv4[core,contrib,nonfree,ffmpeg]:${{ matrix.triplet }}" --clean-after-build
+        shell: bash
+
+      - name: vcpkg install OpenCV4 (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\vcpkg\vcpkg.exe install "opencv4[core,contrib,nonfree,ffmpeg]:${{ matrix.triplet }}" --clean-after-build
+        shell: pwsh
+
+      - name: vcpkg integrate (Windows)
+        if: runner.os == 'Windows'
+        run: .\vcpkg\vcpkg.exe integrate install
+        shell: pwsh
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: build-artifacts-${{ matrix.name }}
+          path: |
+            target/release/**
+            vcpkg/installed/${{ matrix.triplet }}/bin/**
+            vcpkg/installed/${{ matrix.triplet }}/lib/**
+            vcpkg/installed/${{ matrix.triplet }}/debug/**

@@ -1,4 +1,5 @@
 use crate::diff::*;
+use crate::error::*;
 use opencv::core;
 use opencv::imgproc;
 use opencv::prelude::*;
@@ -19,19 +20,19 @@ impl Rect {
     pub const INVALID: Rect = Rect { x: u32::MAX, y: u32::MAX, width: u32::MAX, height: u32::MAX, sign: false };
 }
 
-pub fn write_rects(rectangles: &[Rect], path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn write_rects(rectangles: &[Rect], path: &str) -> Result<(), RectEncError> {
     let serialized_data = rmp_serde::to_vec(rectangles)?;
     fs::write(path, serialized_data)?;
     Ok(())
 }
 
-pub fn read_rects(path: &str) -> Result<Vec<Rect>, Box<dyn std::error::Error>> {
+pub fn read_rects(path: &str) -> Result<Vec<Rect>, RectEncError> {
     let file = fs::File::open(path)?;
     let rectangles = rmp_serde::from_read(&file)?;
     Ok(rectangles)
 }
 
-pub fn frames2rect(frames: &[Mat; 2], adaption: Option<usize>) -> Result<(Rect, Mat), Box<dyn std::error::Error>> {
+pub fn frames2rect(frames: &[Mat; 2], adaption: Option<usize>) -> Result<(Rect, Mat), RectEncError> {
     let rows = frames[0].rows() as usize;
     let cols = frames[0].cols() as usize;
     if !frames[0].is_continuous() || !frames[1].is_continuous() {
@@ -64,7 +65,7 @@ pub fn frames2rect(frames: &[Mat; 2], adaption: Option<usize>) -> Result<(Rect, 
 // This is a performance HACK.
 static mut CURR_FRAME: u32 = 0;
 
-fn weight2mat(weights: &[Weight], rows: usize, cols: usize) -> Result<Mat, Box<dyn std::error::Error>> {
+fn weight2mat(weights: &[Weight], rows: usize, cols: usize) -> Result<Mat, RectEncError> {
     let mut frame = Mat::new_rows_cols_with_default(rows as i32, cols as i32, core::CV_8UC1, core::Scalar::all(128.0))?;
     for (idx, &weight) in weights.iter().enumerate() {
         let row = idx / cols;
@@ -93,7 +94,7 @@ fn weight2mat(weights: &[Weight], rows: usize, cols: usize) -> Result<Mat, Box<d
     Ok(frame)
 }
 
-pub fn rect2frame(frame: &mut Mat, rectangle: &Rect) -> Result<(), Box<dyn std::error::Error>> {
+pub fn rect2frame(frame: &mut Mat, rectangle: &Rect) -> Result<(), RectEncError> {
     imgproc::rectangle(
         frame,
         core::Rect::new(rectangle.x as i32, rectangle.y as i32, rectangle.width as i32, rectangle.height as i32),

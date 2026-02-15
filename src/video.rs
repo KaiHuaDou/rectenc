@@ -1,3 +1,4 @@
+use crate::error::*;
 use opencv::core::*;
 use opencv::imgproc::*;
 use opencv::prelude::*;
@@ -19,11 +20,11 @@ pub struct VideoIterator {
 }
 
 impl VideoIterator {
-    pub fn new(video_capture: VideoCapture, preview: bool) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(video_capture: VideoCapture, preview: bool) -> Result<Self, RectEncError> {
         let total_frames = video_capture.get(CAP_PROP_FRAME_COUNT)? as usize;
         println!("视频总帧数：{}", total_frames);
         if total_frames == 0 {
-            return Err("视频帧数为 0".into());
+            return Err(RectEncError::Video("视频帧数为 0"));
         }
         let video_iterator = VideoIterator {
             video_capture,
@@ -34,18 +35,20 @@ impl VideoIterator {
         Ok(video_iterator)
     }
 
-    // fn skip_frames(&mut self, count: usize) -> Result<(), Box<dyn std::error::Error>> {
-    //     for _ in 0..count {
-    //         let mut mat = Mat::default();
-    //         if !self.video_capture.read(&mut mat)? {
-    //             break;
-    //         };
-    //     }
-    //     Ok(())
-    // }
+    #[inline]
+    #[allow(dead_code)]
+    pub fn skip_frames(&mut self, count: usize) -> Result<(), RectEncError> {
+        for _ in 0..count {
+            let mut mat = Mat::default();
+            if !self.video_capture.read(&mut mat)? {
+                break;
+            };
+        }
+        Ok(())
+    }
 
     #[inline]
-    fn read_frame(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_frame(&mut self) -> Result<(), RectEncError> {
         let mut mat = Mat::default();
         if !self.video_capture.read(&mut mat)? {
             return Ok(());
@@ -81,7 +84,7 @@ impl Iterator for VideoIterator {
     }
 }
 
-pub fn read_video(path: &str, preview: bool) -> Result<(VideoMetadata, VideoIterator), Box<dyn std::error::Error>> {
+pub fn read_video(path: &str, preview: bool) -> Result<(VideoMetadata, VideoIterator), RectEncError> {
     println!("正在从 {} 读取视频帧", path);
     let video_capture = VideoCapture::from_file(path, CAP_ANY)?;
     let metadata = VideoMetadata {
@@ -93,7 +96,7 @@ pub fn read_video(path: &str, preview: bool) -> Result<(VideoMetadata, VideoIter
     Ok((metadata, video_iterator))
 }
 
-pub fn write_video(frames: &[Mat], fps: f32, path: &str, lossy: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn write_video(frames: &[Mat], fps: f32, path: &str, lossy: bool) -> Result<(), RectEncError> {
     let fourcc =
         if lossy { VideoWriter::fourcc('a', 'v', 'c', '1')? } else { VideoWriter::fourcc('F', 'F', 'V', '1')? };
 

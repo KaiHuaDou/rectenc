@@ -1,10 +1,12 @@
 #![allow(clippy::all)]
 
 mod diff;
+mod error;
 mod rect;
 mod video;
 
 use clap::{Parser, Subcommand};
+use error::*;
 use opencv::core;
 use opencv::prelude::*;
 use rect::*;
@@ -55,13 +57,7 @@ fn main() {
     }
 }
 
-fn encode_video(
-    input: &str,
-    output: &str,
-    rect_count: u8,
-    preview: bool,
-    adaptive: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn encode_video(input: &str, output: &str, rect_count: u8, preview: bool, adaptive: bool) -> Result<(), RectEncError> {
     println!("编码 {} 到 {}", input, output);
     let mut rectangles = Vec::new();
     let (metadata, iterator) = read_video(input, preview)?;
@@ -104,7 +100,7 @@ fn encode_video(
     Ok(())
 }
 
-fn decode_video(input: &str, output: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn decode_video(input: &str, output: &str) -> Result<(), RectEncError> {
     println!("解码 {} 到 {}", input, output);
     let rectangles = read_rects(input)?;
     let metadata = &rectangles[0];
@@ -118,7 +114,15 @@ fn decode_video(input: &str, output: &str) -> Result<(), Box<dyn std::error::Err
     let adaptive = metadata.y == u32::MAX;
     if adaptive {
         let mut frames = vec![empty_mat.clone()];
-        decode_rects_adaptive(&rectangles, &mut frames)?;
+        let mut idx = 0;
+        for i in 1..rectangles.len() {
+            if rectangles[i] != Rect::INVALID {
+                rect2frame(&mut frames[idx], &rectangles[i])?;
+            } else {
+                frames.push(frames[idx].clone());
+                idx += 1;
+            }
+        }
         write_video(&frames, f32::from_bits(metadata.x), output, true)?;
     } else {
         let rect_count = metadata.y as usize;
@@ -133,18 +137,5 @@ fn decode_video(input: &str, output: &str) -> Result<(), Box<dyn std::error::Err
         }
         write_video(&frames, f32::from_bits(metadata.x), output, true)?;
     };
-    Ok(())
-}
-
-fn decode_rects_adaptive(rectangles: &Vec<Rect>, frames: &mut Vec<Mat>) -> Result<(), Box<dyn std::error::Error>> {
-    let mut idx = 0;
-    for i in 1..rectangles.len() {
-        if rectangles[i] != Rect::INVALID {
-            rect2frame(&mut frames[idx], &rectangles[i])?;
-        } else {
-            frames.push(frames[idx].clone());
-            idx += 1;
-        }
-    }
     Ok(())
 }
